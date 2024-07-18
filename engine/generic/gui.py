@@ -634,6 +634,7 @@ class Image(pyqtgraph.GraphicsLayoutWidget):
         self.plot.addItem(self.img)
         self.plot.showGrid(True,True,1.0)
         self.scene().sigMouseClicked.connect(self.mouse_clicked)
+        self.scene().sigMouseMoved.connect(self.mouse_moved)        
         self.rois = []    
         self.dot_size=6
         self.concatenate_manual_points=False
@@ -678,6 +679,30 @@ class Image(pyqtgraph.GraphicsLayoutWidget):
         pl=self.plot.plot(points[:,0],points[:,1], pen=(0,0,185),symbolBrush=(0,0,185), symbolPen='b', pxMode=True,symbolSize=self.dot_size)
         self.manual_points=[pl]
 
+    def mouse_moved(self,e):
+        p=self.img.mapFromScene(e)
+        self.actual_mouse_pos_x=p.x()
+        self.actual_mouse_pos_y=p.y()
+        
+    def add_manual_point(self,x,y):
+        if not hasattr(self, 'manual_points'):
+            self.manual_points=[]
+        if self.concatenate_manual_points:
+            if len(self.manual_points)==0:
+                self.points=[[x,y]]
+            else:
+                self.points.append([x,y])
+            if len(self.manual_points)>0:
+                self.plot.removeItem(self.manual_points[-1])
+                del self.manual_points[-1]
+            points=numpy.array(self.points)
+            pl=self.plot.plot(points[:,0],points[:,1], pen=(0,0,185),symbolBrush=(0,0,185), symbolPen='b', pxMode=True,symbolSize=self.dot_size)
+        else:
+                pl=self.plot.plot(numpy.array([x]),numpy.array([y]),  pen=None, symbol='o',symbolSize=self.dot_size)
+        pl.xvalue=x
+        pl.yvalue=y
+        self.manual_points.append(pl)
+
     def mouse_clicked(self,e):
         print(e)
         p=self.img.mapFromScene(e.scenePos())
@@ -706,26 +731,27 @@ class Image(pyqtgraph.GraphicsLayoutWidget):
                                 self.plot.removeItem(self.manual_points[distance_square_sums.argmin()])
                                 del self.manual_points[distance_square_sums.argmin()]
                     else:
-                        if not hasattr(self, 'manual_points'):
-                            self.manual_points=[]
+                        self.add_manual_point(p.x(),p.y())
+                        #if not hasattr(self, 'manual_points'):
+                        #    self.manual_points=[]
                         #ppp=pyqtgraph.mkPen(color='r', width=0.4)
                         #
-                        if self.concatenate_manual_points:
-                            if len(self.manual_points)==0:
-                                self.points=[[p.x(),p.y()]]
-                            else:
+                        #if self.concatenate_manual_points:
+                        #    if len(self.manual_points)==0:
+                        #        self.points=[[p.x(),p.y()]]
+                        #    else:
                                 #points=[[p.xvalue, p.yvalue] for p in self.manual_points]
-                                self.points.append([p.x(),p.y()])
-                            if len(self.manual_points):
-                                self.plot.removeItem(self.manual_points[-1])
-                                del self.manual_points[-1]
-                            points=numpy.array(self.points)
-                            pl=self.plot.plot(points[:,0],points[:,1], pen=(0,0,185),symbolBrush=(0,0,185), symbolPen='b', pxMode=True,symbolSize=self.dot_size)
-                        else:
-                            pl=self.plot.plot(numpy.array([p.x()]),numpy.array([p.y()]),  pen=None, symbol='o',symbolSize=self.dot_size)
-                        pl.xvalue=p.x()
-                        pl.yvalue=p.y()
-                        self.manual_points.append(pl)
+                        #        self.points.append([p.x(),p.y()])
+                        #    if len(self.manual_points):
+                        #        self.plot.removeItem(self.manual_points[-1])
+                        #        del self.manual_points[-1]
+                        #    points=numpy.array(self.points)
+                        #    pl=self.plot.plot(points[:,0],points[:,1], pen=(0,0,185),symbolBrush=(0,0,185), symbolPen='b', pxMode=True,symbolSize=self.dot_size)
+                        #else:
+                        #    pl=self.plot.plot(numpy.array([p.x()]),numpy.array([p.y()]),  pen=None, symbol='o',symbolSize=self.dot_size)
+                        #pl.xvalue=p.x()
+                        #pl.yvalue=p.y()
+                        #self.manual_points.append(pl)
                 elif int(e.buttons()) == 2:
                     print(self.manual_points)
         elif not self.image_clickable:
