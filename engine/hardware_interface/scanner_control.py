@@ -178,16 +178,16 @@ class ScannerWaveform(object):
         #import pdb;pdb.set_trace()
         
         offset=int(first_zero_crossing-0.5*utils.roundint(width * resolution))
-        scan_mask=numpy.zeros(samples_per_xscan)
+        scan_mask_single=numpy.zeros(samples_per_xscan)
         
         if bidir:
-            scan_mask[offset:offset+utils.roundint(width * resolution)]=1
+            scan_mask_single[offset:offset+utils.roundint(width * resolution)]=1
             second_zero_crossing=numpy.nonzero(numpy.diff(numpy.sign(wf)))[0][1]
             offset2=int(second_zero_crossing-0.5*utils.roundint(width * resolution))
-            scan_mask[offset2:offset2+utils.roundint(width * resolution)]=1
+            scan_mask_single[offset2:offset2+utils.roundint(width * resolution)]=1
         else:
-            scan_mask[offset:offset+utils.roundint(width * resolution)]=1
-        scan_mask=numpy.tile(scan_mask,nxscans )
+            scan_mask_single[offset:offset+utils.roundint(width * resolution)]=1
+        scan_mask=numpy.tile(scan_mask_single,nxscans )
             
         scan_mask[-2*samples_per_xscan:]=0
         boundaries = numpy.nonzero(numpy.diff(scan_mask))[0]+1
@@ -202,9 +202,17 @@ class ScannerWaveform(object):
         waveform_y*=self.scan_voltage_um_factor
         from pylab import plot,show
        # plot(scan_mask);plot(wf);show()
-        #import pdb;pdb.set_trace()
+        
         print(f'nxscans={nxscans}, {wf.shape}, {samples_per_xscan}')
-        return wf, boundaries, waveform_y
+
+        frame_timing=numpy.zeros_like(wf)
+        frame_timing[-utils.roundint(self.fsample*self.frame_timing_pulse_width):]=self.projector_control_voltage
+        frame_timing[-1]=0
+        projector_control=1-numpy.tile(scan_mask_single,nxscans )
+        projector_control[-1]=0
+        projector_control*=self.projector_control_voltage
+        #import pdb;pdb.set_trace()
+        return wf, boundaries, waveform_y,projector_control,frame_timing
         
 def binning_data(data, factor):
     '''
@@ -342,7 +350,7 @@ class SyncAnalogIORecorder(daq.SyncAnalogIO, instrument.InstrumentProcess):
             self.frame_counter=0
             self.printl(self.kwargs)
             if 'stage_port' in self.kwargs:
-                self.stage=stage_control.SutterStage(self.kwargs['stage_port'],  self.kwargs['stage_baudrate'])
+                self.stage=stage_control.ScientificaStage(self.kwargs['stage_port'],  self.kwargs['stage_baudrate'])#SutterStage
                 self.stage.setnowait=True#Stage does not block at setting stage position
                 if 'encoder_channel' in self.kwargs:
                     self.encoder=stage_control.EncoderReader(self.kwargs['encoder_channel'])
@@ -551,9 +559,19 @@ class SyncAnalogIORecorder(daq.SyncAnalogIO, instrument.InstrumentProcess):
             self.printl(f'Saved to {tifffn}')
             self.printl('Closing file')
         self.printl(f'Recorded {self.frame_counter} frames, sent {self.ct} frames to GUI, {self.cct} frames saved')
-        for i in range(5):
-            if self.set_back_z():#Try setting back 5x
-                break
+        if self.zvalues!=[] and self.zvalues is not None:
+            #self.stage.z=self.zvalues[0]
+            self.queues['response'].put('Setting back stage to initial position')
+            self.stage.setz(self.zvalues[0])
+            for i in range(int(self.stage_set_back_timeout/5)):
+                time.sleep(5)
+                ismoving=self.stage.is_moving()
+                if not ismoving:
+                    break
+                else:
+                    self.queues['response'].put('Stage in motion, please wait.')
+            if self.stage.is_moving():
+                self.queues['response'].put('Z stack Done but stage is still in motion')
             else:
                 self.queues['response'].put('Retrying...')
         self.queues['response'].put(f'Z stack Done, current position: {self.stage.z}')

@@ -1,6 +1,7 @@
 import numpy, struct
 import re
 import time
+import sys
 try:
     import serial
 except:
@@ -355,6 +356,55 @@ class RemoteFocus(object):
             self.serial_port.close()
         except AttributeError:
             pass
+
+class ScientificaStage(serial.Serial):
+    def __init__(self,port,baudrate):
+        if '--nostage' in sys.argv:
+            self.nostage = True
+        else:
+            self.nostage = False
+            serial.Serial.__init__(self,  port, baudrate=38400, timeout=1)
+            time.sleep(1)
+
+    @property
+    def z(self):
+        if not self.nostage:
+            self.write(b'PZ\r')
+            resp=self.read(20)
+            self.zpos=float(resp[:-1].decode())/100
+            return self.zpos
+        else:
+            if not hasattr(self, 'zpos'):
+                self.zpos = 0
+            return self.zpos
+        
+    @z.setter
+    def z(self, value):#self.write(b'm'+struct.pack('<iii', 0, 0, 0)+b'\r');self.read(1)
+        if not self.nostage :
+            cmd=bytes(f'ABSZ {int(value*100)}\r','utf-8')
+            deltaz=abs(value-self.zpos)
+            #print(deltaz)
+            if deltaz>30000:
+                raise ValueError(f'too big movement: {deltaz}')
+            self.write(cmd)
+            self.zpos=values/100
+            self.read(10)
+        else:
+            self.zpos=value
+                
+    def setz(self, value, timeout=5):
+        if not self.nostage :
+            cmd=bytes(f'ABSZ {int(value*100)}\r','utf-8')
+            self.write(cmd)
+            self.read(10)
+        else:
+            self.zpos = value
+
+    def setz2(self,value):
+        self.setz(value)
+
+    def is_moving(self):
+        return False
             
 class SutterStage(serial.Serial):
     """

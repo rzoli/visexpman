@@ -504,15 +504,16 @@ class TwoPhotonImaging(gui.VisexpmanMainWindow):
                                                                     pulse_width,\
                                                                     self.settings['params/Advanced/Projector Control Phase']*1e-6,)
         self.waveform_x_orig=waveform_x.copy()
-        waveform_x, self.boundaries,waveform_y1=self.waveform_generator.generate_smooth(int(self.settings['params/Scan Height']), \
+        waveform_x, self.boundaries,waveform_y1,projector_control,frame_timing=self.waveform_generator.generate_smooth(int(self.settings['params/Scan Height']), \
                                                                                         int(self.settings['params/Scan Width']), \
                                                                                         self.settings['params/Resolution'],\
                                                                                         self.settings['params/Advanced/X Return Time'],\
                                                                                         self.settings['params/Advanced/Y Return Time'], \
                                                                                         self.settings['params/Bidirectional scan'])
+        print(projector_control.sum(),frame_timing.sum())
         if self.settings['params/Bidirectional scan']:
-            projector_control=numpy.zeros_like(waveform_x)
-            frame_timing=numpy.zeros_like(waveform_x)
+            #projector_control=numpy.zeros_like(waveform_x)
+            #frame_timing=numpy.zeros_like(waveform_x)
             waveform_y=waveform_y1
         if self.settings['params/Advanced/Enable scanners']=='X':
             waveform_y*=0
@@ -786,7 +787,7 @@ class TwoPhotonImaging(gui.VisexpmanMainWindow):
             if self.image_update_in_progress:
                 return
             self.image_update_in_progress=True
-            if self.frame_counter>20 and self.twop_running and (self.twop_frame.shape[0]!=round(self.settings['params/Scan Height']*self.settings['params/Resolution']) or self.twop_frame.shape[1]!=round(self.settings['params/Scan Width']*self.settings['params/Resolution'])):
+            if self.frame_counter>20 and self.twop_running and (self.twop_frame.shape[1]!=round(self.settings['params/Scan Height']*self.settings['params/Resolution']) or self.twop_frame.shape[0]!=round(self.settings['params/Scan Width']*self.settings['params/Resolution'])):
                 #self.stop_action()
                 h=self.settings['params/Scan Height']*self.settings['params/Resolution']
                 w=self.settings['params/Scan Width']*self.settings['params/Resolution']
