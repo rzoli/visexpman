@@ -5,7 +5,7 @@ class HarvardPeristalticPump(serial.Serial):
         serial.Serial.__init__(self, port,115200, timeout=1)
         
     def command(self,cmd):
-        self.write(cmd+'\r')
+        self.write(bytes(cmd+'\r',encoding='utf-8'))
         return self.read(300)
         
     def run(self, rate):

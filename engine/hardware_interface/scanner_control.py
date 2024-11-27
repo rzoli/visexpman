@@ -555,7 +555,7 @@ class SyncAnalogIORecorder(daq.SyncAnalogIO, instrument.InstrumentProcess):
             import hdf5io, tifffile
             data=hdf5io.read_item(self.filename, 'twopdata')
             tifffn=fileop.replace_extension(self.filename,'.tiff')
-            tifffile.imwrite(tifffn,data)
+            tifffile.imwrite(tifffn,numpy.rollaxis(data,3,1), imagej=True)
             self.printl(f'Saved to {tifffn}')
             self.printl('Closing file')
         self.printl(f'Recorded {self.frame_counter} frames, sent {self.ct} frames to GUI, {self.cct} frames saved')
