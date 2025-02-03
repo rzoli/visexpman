@@ -1157,7 +1157,7 @@ class FileInput(Qt.QMainWindow):
         elif self.mode=='folder':
             filename= str(QtWidgets.QFileDialog.getExistingDirectory(self, self.title, self.root))
         elif self.mode=='text':
-            text, ok = QtGui.QInputDialog.getText(self, self.title, '', QtGui.QLineEdit.Normal, self.default)
+            text, ok = QtWidgets.QInputDialog.getText(self, self.title, '', QtWidgets.QLineEdit.Normal, self.default)
             self.text=str(text)
         elif self.mode=='message':
             QtWidgets.QMessageBox.question(self, self.title, self.message, QtWidgets.QMessageBox.Ok)
