@@ -57,7 +57,7 @@ def array2string(inarray):
         a = [str(x) for x in inarray]
     return numpy.array(a)
 
-def get_recent_file(flist, ref_date = None, mode = 'earlier', interval=numpy.Inf):
+def get_recent_file(flist, ref_date = None, mode = 'earlier', interval=numpy.inf):
     '''
     Checks the date of each file in the list and returns the most recent one.
     If ref_date is provided then returns the file closest in time. If interval is set then only returns files

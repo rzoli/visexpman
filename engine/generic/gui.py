@@ -781,6 +781,8 @@ class Image(pyqtgraph.GraphicsLayoutWidget):
             roi = pyqtgraph.ROI((x,y),size=s,movable=False,removable=True)
         elif type == 'rect':
             roi = pyqtgraph.RectROI((x-0.5*size[0],y-0.5*size[1]),size=size, movable = movable)
+        elif type == 'line':
+            roi = pyqtgraph.LineROI(pos1=(x[0],y[0]),pos2=(x[1],y[1]),width=size, movable = movable)
         roi.setPen((self.unselected_color[0],self.unselected_color[1],self.unselected_color[2],255), width=2)
         #roi.sigRegionChanged.connect(self.update_roi_info)
         self.rois.append(roi)

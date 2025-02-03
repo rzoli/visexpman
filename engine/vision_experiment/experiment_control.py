@@ -261,7 +261,7 @@ class StimulationControlHelper(Trigger,queued_socket.QueuedSocketHelpers):
                 if self.machine_config.ENABLE_SYNC=='stim':
                     self.sync_recording_duration=self.parameters['duration']
                     if self.sync_recording_duration<0:
-                        self.sync_recording_duration=self.machine_config.EXPERIMENT_MAXIMUM_DURATION*60
+                        self.sync_recording_duration=self.machine_config.EXPERIMENT_MAXIMUM_DURATION
                     self.start_sync_recording()
                     if 'Record Eyecamera' in self.parameters and self.parameters['Record Eyecamera']:
                         self.printl(f'Wait {self.machine_config.CAMERA_START_TIME} seconds until camera starts')
