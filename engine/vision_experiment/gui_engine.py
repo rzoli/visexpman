@@ -302,11 +302,21 @@ class ExperimentHandler(object):
                     amplitudes/=scale
                     onsamples=int(fsample*self.guidata.read('On time')*1e-3)
                     offsamples=int(fsample*self.guidata.read('Off time')*1e-3)
-                    epochs=[numpy.zeros(offsamples)]
+                    offwf=numpy.zeros(offsamples)
+                    epochs=[offwf]
                     for a in amplitudes:
-                        epochs.append(numpy.ones(onsamples)*a)
-                        epochs.append(numpy.zeros(offsamples))
-                        epochs.append(numpy.zeros(int(fsample*self.guidata.read('Wait time')*1e-3)))
+                        if self.guidata.read('Insert ramp') and self.guidata.read('Off time')>300:
+                            epochs[0]*=-40/scale
+                            epoch_duration=50
+                            nsamples=int(fsample*epoch_duration/1e3)
+                              offwf=numpy.concatenate([numpy.ones(nsamples)*-60,numpy.ones(nsamples)*-40,numpy.linspace(-40,-60,nsamples),numpy.linspace(-60,-40,nsamples),numpy.ones(nsamples)*-40])/scale
+                            epochs.append(offwf)
+                            epochs.append(numpy.ones(onsamples)*a)
+                            epochs.append(-40*numpy.ones(int(fsample*self.guidata.read('Wait time')*1e-3))/scale)
+                        else:
+                            epochs.append(numpy.ones(onsamples)*a)
+                            epochs.append(offwf)
+                            epochs.append(numpy.zeros(int(fsample*self.guidata.read('Wait time')*1e-3)))
                     experiment_parameters['elphys_amplitudes_volt']=amplitudes
                     experiment_parameters['elphys_waveform']=numpy.concatenate(epochs)
                 elif 'ELPHYS_STIMULUS' not in self.stimulus_config or not self.stimulus_config['ELPHYS_STIMULUS']:

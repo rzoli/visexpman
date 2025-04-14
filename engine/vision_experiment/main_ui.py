@@ -903,6 +903,7 @@ class MainUI(gui.VisexpmanMainWindow):
                                     {'name': 'Amplitude Step size', 'type': 'float', 'value': 1},
                                     {'name': 'Amplitude Repeats', 'type': 'float', 'value': 1},
                                     {'name': 'Amplitude unit', 'type': 'list', 'value': 'pA',  'values': ['pA', 'mV']},
+                                    {'name': 'Insert ramp', 'type': 'bool', 'value': False},
                                     {'name': 'Wait time', 'type': 'float', 'value': 2000,  'suffix': 'ms', 'decimals':6},
                                     {'name': 'On time', 'type': 'float', 'value': 500,  'suffix': 'ms'},
                                     {'name': 'Off time', 'type': 'float', 'value': 500,  'suffix': 'ms'},
