@@ -30,7 +30,7 @@ class TwoPhotonImaging(gui.VisexpmanMainWindow):
         gui.VisexpmanMainWindow.__init__(self, context)
         self.setWindowIcon(gui.get_icon('main_ui'))
         self._init_variables()
-        #self._init_hardware()
+        self._init_hardware()
         self.resize(self.machine_config.GUI_WIDTH, self.machine_config.GUI_HEIGHT)
         self.setGeometry(self.machine_config.GUI_POSITION[0], self.machine_config.GUI_POSITION[1], self.machine_config.GUI_WIDTH, self.machine_config.GUI_HEIGHT)
         self._set_window_title()
@@ -111,7 +111,6 @@ class TwoPhotonImaging(gui.VisexpmanMainWindow):
                 self.parameter_changed()
         else:
             self.parameter_changed()
-        self._init_hardware()
         if self.settings['params/Live IR']:
             self.printc('Autostart IR camera')
             self.camera.start_()
@@ -224,7 +223,7 @@ class TwoPhotonImaging(gui.VisexpmanMainWindow):
                     {'name': 'Start', 'type': 'float', 'value': 0, 'siPrefix': False, 'suffix': 'usteps', 'decimals': 6},
                     {'name': 'End', 'type': 'float', 'value': 0,  'siPrefix': False, 'suffix': 'usteps', 'decimals': 6},
                     {'name': 'Step', 'type': 'float', 'value': 1, 'siPrefix': False, 'suffix': 'usteps', 'decimals': 6}, 
-                   # {'name': 'Samples per depth', 'type': 'int', 'value': 1},
+                    {'name': 'Samples per depth', 'type': 'int', 'value': 1},
                     #{'name': 'File Format', 'type': 'list', 'value': '.hdf5',  'values': file_formats},
                 ]}, 
                 {'name': 'Advanced', 'type': 'group', 'expanded' : False, 'children': [
@@ -242,6 +241,7 @@ class TwoPhotonImaging(gui.VisexpmanMainWindow):
                     {'name': 'Y scanner voltage', 'type': 'float', 'value': 0,  'suffix': ' V'},
                     {'name': 'Red laser enable', 'type': 'bool', 'value': True},
                     {'name': 'Green laser enable', 'type': 'bool', 'value': True},
+                    {'name': 'Gamma', 'type': 'float', 'value': 0.25, },
                 ]}, 
             ]
             
@@ -524,7 +524,8 @@ class TwoPhotonImaging(gui.VisexpmanMainWindow):
         elif self.settings['params/Advanced/Enable scanners']=='None':
             waveform_x=waveform_x*0+self.settings['params/Advanced/X scanner voltage']
             waveform_y=waveform_y*0+self.settings['params/Advanced/Y scanner voltage']
-            
+        if not self.settings['params/Advanced/Enable Projector']:
+            projector_control *=0
         self.waveform=numpy.array([waveform_x, waveform_y, projector_control, frame_timing])
         self.dwell_time=(1000/self.machine_config.AI_SAMPLE_RATE)/numpy.diff(self.waveform[0, self.boundaries[0]:self.boundaries[1]]).mean()
         
@@ -797,17 +798,16 @@ class TwoPhotonImaging(gui.VisexpmanMainWindow):
             if not hasattr(self, 'twop_frame'):
                 self.merged=self.ir_filtered
             else:
-                self.ir_filtered=filter_image(self.ir_frame,
-                                                                self.settings['params/Live/IR Image filters'])*int(self.settings['params/Show IR'])
+                self.ir_filtered=filter_image(self.ir_frame, self.settings['params/Live/IR Image filters'])*int(self.settings['params/Show IR'])
                                                                 
                                                                 
                 top_filtered=filter_image(self.twop_frame[:,:,0],
-                                                                self.settings['params/Live/Top Image filters'])*\
-                                                                int(self.settings['params/Show Top'])
+                                                                self.settings['params/Live/Top Image filters']*int(self.settings['params/Show Top']), gamma=self.settings['params/Advanced/Gamma'])
 
                 side_filtered=filter_image(self.twop_frame[:,:,1], 
-                                                                self.settings['params/Live/Side Image filters'])*\
-                                                                int(self.settings['params/Show Side'])
+                                                                self.settings['params/Live/Side Image filters']*int(self.settings['params/Show Side']), gamma=self.settings['params/Advanced/Gamma'])
+                self.scaled_img=self.twop_frame[:,:,1]
+                self.filtered_img=side_filtered
                 if self.settings['params/Averaging samples']>1:#TODO: implement this for both channels
                     if not hasattr(self, 'moving_average_buffer') or self.moving_average_buffer.shape[1:]!=top_filtered.shape or self.navg!=int(self.settings['params/Averaging samples']):
                         self.printc('Reset averaging buffer')
@@ -1087,7 +1087,7 @@ class TwoPhotonImaging(gui.VisexpmanMainWindow):
             steptime*=8#Calibrated for 500 usteps
             self.stepsamples=int(numpy.ceil(self.get_fps()*steptime))
             self.printc(f"Z stack in {', '.join(map(str,self.depths))}, stepsamples: {self.stepsamples}")
-            self.zvalues=numpy.repeat(self.depths, self.settings['params/Averaging samples']+self.stepsamples)
+            self.zvalues=numpy.repeat(self.depths, self.settings['params/Z Stack/Samples per depth']+self.stepsamples)
             self.record_action(zvalues=self.zvalues)
             self.statusbar.twop_status.setText('Z stack')
             self.statusbar.twop_status.setStyleSheet('background:red;')
@@ -1102,7 +1102,7 @@ class TwoPhotonImaging(gui.VisexpmanMainWindow):
             datacompressor = tables.Filters(complevel=5, complib='zlib', shuffle = 1)
             h=int(self.settings['params/Resolution']*self.settings['params/Scan Height'])
             w=int(self.settings['params/Resolution']*self.settings['params/Scan Width'])
-            datatype = tables.UInt16Atom((self.settings['params/Averaging samples'], h, w, 2))
+            datatype = tables.UInt16Atom((self.settings['params/Z Stack/Samples per depth'], h, w, 2))
             self.zstack_data_handle=self.zstackfile.create_earray(self.zstackfile.root, 'zstackdata', datatype, (0,),filters=datacompressor)
             self.tifffns=[]
         except:
@@ -1116,7 +1116,7 @@ class TwoPhotonImaging(gui.VisexpmanMainWindow):
                         self.stage.z=self.depths[self.depth_index]
                         time.sleep(2)
                         self.printc(f"Set position to {self.stage.z} ustep")
-                        self.record_action(nframes=self.settings['params/Averaging samples'])
+                        self.record_action(nframes=self.settings['params/Z Stack/Samples per depth'])
                         self.z_stack_state='wait'
                 elif self.z_stack_state=='wait':
                     if not self.nframes_recording_running:
@@ -1124,7 +1124,7 @@ class TwoPhotonImaging(gui.VisexpmanMainWindow):
                         time.sleep(15)
                         fileop.wait4file_ready(self.filename, min_size=0.5e6)
                         h=tables.open_file(self.filename, 'r')
-                        data=h.root.twopdata.read()[-self.settings['params/Averaging samples']:]
+                        data=h.root.twopdata.read()[-self.settings['params/Z Stack/Samples per depth']:]
                         self.printc(data.shape)
                         self.zstack_data_handle.append(data[None, :])
                         h.close()
@@ -1365,8 +1365,8 @@ def process_zstack(filename, max_pmt_voltage=8):
     transient_indexes=numpy.nonzero(numpy.diff(h.root.twopdata.attrs.zvalues))[0]
     transient_indexes=numpy.insert(transient_indexes,0,0)
     valid_start_indexes=transient_indexes+h.root.twopdata.attrs.stepsamples
-    valid_end_indexes=valid_start_indexes+int(h.root.twopdata.attrs.params_Averaging_samples)
-    zstack=numpy.zeros((valid_start_indexes.shape[0], int(h.root.twopdata.attrs.params_Averaging_samples), frames.shape[1], frames.shape[2]))
+    valid_end_indexes=valid_start_indexes+h.root.twopdata.attrs.params_Z_Stack_Samples_per_depth
+    zstack=numpy.zeros((valid_start_indexes.shape[0], h.root.twopdata.attrs.params_Z_Stack_Samples_per_depth, frames.shape[1], frames.shape[2]))
     for stepi in range(valid_start_indexes.shape[0]):
         zstack[stepi]=frames[valid_start_indexes[stepi]:valid_end_indexes[stepi]]
     zvalues=numpy.array(list(set(h.root.twopdata.attrs.zvalues)))
@@ -1483,7 +1483,7 @@ def filter_image(image, filter, gamma=0.25):
     if filter=='':
         filtered=scaled
     elif filter=='histogram equalization':
-        filtered=skimage.exposure.equalize_hist(scaled)
+        filtered=skimage.exposure.equalize_adapthist(scaled/scaled.max())
     elif filter=='autoscale':
         filtered=(scaled-scaled.min())/(scaled.max()-scaled.min())
     elif filter=='gamma':
