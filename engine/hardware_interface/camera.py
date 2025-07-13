@@ -16,7 +16,30 @@ try:
 except ImportError:
     print('PyDAQmx not installed')
 from visexpman.engine.hardware_interface import instrument
+from visexpman.engine.hardware_interface import daq
+from visexpman import fileop
 import copy
+import time
+import numpy
+
+try:
+    import PySpin
+except:
+    print('No BlackFly S camera driver installed')
+
+def start_widefield(config):#Chuchlab WidefieldImager compatible
+    if not hasattr(config,'WIDEFIELD_START_PINS'):
+        return
+    for port in config.WIDEFIELD_START_PINS:
+        daq.digital_pulse(port,100e-3)
+        time.sleep(0.3)
+        
+def stop_widefield(config):
+    if not hasattr(config,'WIDEFIELD_STOP_PINS'):
+        return
+    for port in config.WIDEFIELD_STOP_PINS:
+        daq.digital_pulse(port,100e-3)
+        time.sleep(0.3)
 
 class ThorlabsCamera(object):
     def __init__(self, dll_path, nbit=8):
@@ -278,6 +301,335 @@ class ISCamera(instrument.InstrumentProcess):
         except:
             import traceback
             self.printl(traceback.format_exc())
+            
+class BlackFlySCamera(instrument.InstrumentProcess):
+    def __init__(self,logfile,digital_line, frame_rate=30, auto_exposure_time = True, exposure_time_us=20000, filename=None, show=False, FrameStart_out_enabled = False, h_res=1440//4, v_res=1080//4):
+        self.filename=filename
+        self.frame_rate=frame_rate
+        self.digital_line=digital_line
+        self.exposure_time_us=exposure_time_us
+        self.auto_exposure_time = auto_exposure_time
+        self.FrameStart_out_enabled = FrameStart_out_enabled
+        self.show=show
+        self.h_res = h_res
+        self.v_res = v_res
+        self.queues={'command': multiprocessing.Queue(), 'response': multiprocessing.Queue(), 'data': multiprocessing.Queue()}
+        instrument.InstrumentProcess.__init__(self,self.queues,logfile)
+        self.control=multiprocessing.Queue()
+        self.data=multiprocessing.Queue()
+        print(self.logfile)
+        print(1)
+        
+    def stop(self):
+        self.queues['command'].put('stop')
+        
+    def read(self):
+        if not self.queues['data'].empty():
+            return self.queues['data'].get()
+            
+    def save(self, fn):
+        self.queues['command'].put(['save', fn])
+
+    def stop_saving(self):
+        self.queues['command'].put('stop_saving')
+        t0=time.time()
+        while True:
+            if not self.queues['response'].empty():
+                msg=self.queues['response'].get()
+                if msg=='save done':
+                    break
+                if time.time()-t0>60:
+                    break
+                time.sleep(0.5)
+
+    def ttl_enable(self):
+        self.queues['command'].put('ttl_enable')
+
+    def ttl_disable(self):
+        self.queues['command'].put('ttl_disable')
+                
+    def change_bufferhandling_mode(self, cam):
+        sNodemap = cam.GetTLStreamNodeMap()
+        
+        # Change bufferhandling mode to NewestOnly
+        node_bufferhandling_mode = PySpin.CEnumerationPtr(sNodemap.GetNode('StreamBufferHandlingMode'))
+        if not PySpin.IsReadable(node_bufferhandling_mode) or not PySpin.IsWritable(node_bufferhandling_mode):
+            raise ValueError(f'Unable to set stream buffer handling mode')
+            #print('Unable to set stream buffer handling mode.. Aborting...')
+
+        # Retrieve entry node from enumeration node
+        node_newestonly = node_bufferhandling_mode.GetEntryByName('NewestOnly')
+        if not PySpin.IsReadable(node_newestonly):
+            raise ValueError(f'Unable to set stream buffer handling mode')
+
+        # Retrieve integer value from entry node
+        node_newestonly_mode = node_newestonly.GetValue()
+
+        # Set integer value from entry node as new value of enumeration node
+        node_bufferhandling_mode.SetIntValue(node_newestonly_mode)
+        
+    def set_acquisition_mode(self, cam):
+        nodemap = cam.GetNodeMap()
+        node_acquisition_mode = PySpin.CEnumerationPtr(nodemap.GetNode('AcquisitionMode'))
+        if not PySpin.IsReadable(node_acquisition_mode) or not PySpin.IsWritable(node_acquisition_mode):
+            raise ValueError(f'Unable to set acquisition mode to continuous (enum retrieval).')
+
+        # Retrieve entry node from enumeration node
+        node_acquisition_mode_continuous = node_acquisition_mode.GetEntryByName('Continuous')
+        if not PySpin.IsReadable(node_acquisition_mode_continuous):
+            raise ValueError(f'Unable to set acquisition mode to continuous (enum retrieval).')
+
+        # Retrieve integer value from entry node
+        acquisition_mode_continuous = node_acquisition_mode_continuous.GetValue()
+
+        # Set integer value from entry node as new value of enumeration node
+        node_acquisition_mode.SetIntValue(acquisition_mode_continuous)
+
+        print('Acquisition mode set to continuous...')
+
+    def set_exposure_Auto_mode(self, cam, exposure_mode): #valid modes: Off, Continuous, Once
+        cam.ExposureMode.SetValue(PySpin.ExposureMode_Timed)
+        if(exposure_mode == "Off"):
+            cam.ExposureAuto.SetValue(PySpin.ExposureAuto_Off)
+        elif(exposure_mode == "Once"):
+            cam.ExposureAuto.SetValue(PySpin.ExposureAuto_Once)
+        elif(exposure_mode == "Continuous"):
+            cam.ExposureAuto.SetValue(PySpin.ExposureAuto_Continuous)
+        else:
+            print("invalid exposure_auto_mode!")
+            return
+        
+        print('Exposure_mode_auto set to:', exposure_mode)
+
+    def set_exposure_time_us(self, cam, exposure_time): #4-29999999us before set call set_exposure_mode with exposure_mode=Off)
+        cam.ExposureTime.SetValue(exposure_time)
+        print('Exposure_time set to:', exposure_time)
+
+    def set_framerate(self, cam, fps):
+        cam.AcquisitionFrameRateEnable.SetValue(True)
+        cam.AcquisitionFrameRate.SetValue(fps)
+        print('Set faremerate to:', fps)
+
+    def disable_manual_trigger(self, cam):
+        cam.TriggerMode.SetValue(PySpin.TriggerMode_On) #required to turn off then on to make it work. Why?
+        cam.TriggerMode.SetValue(PySpin.TriggerMode_Off)
+
+    def set_frame_start_gpio_state(self, cam, state):
+        cam.LineSelector.SetValue(PySpin.LineSelector_Line2)
+        if(state):
+            cam.LineMode.SetValue(PySpin.LineMode_Output)
+            cam.LineSource.SetValue(PySpin.LineSource_ExposureActive)  #may not be the right signal.
+        else:
+            cam.LineMode.SetValue(PySpin.LineMode_Input)
+            cam.LineSource.SetValue(PySpin.LineSource_Off)
+
+        print("set_frame_start_gpio_state", state)
+
+    def set_resolution(self, cam, h_res, v_res):
+        MAX_HRES = 1440
+        MAX_VRES = 1080
+        if(h_res <= MAX_HRES/2 and v_res <= MAX_VRES/2): #binning possible
+            cam.BinningHorizontal.SetValue(2)
+            cam.BinningVertical.SetValue(2)
+            cam.Width.SetValue(h_res)
+            cam.Height.SetValue(v_res)
+            #cam.OffsetX.SetValue(((MAX_HRES/2)-h_res)/2)
+           # cam.OffsetY.SetValue(((MAX_VRES/2)-v_res)/2)
+            cam.BinningHorizontalMode.SetValue(PySpin.BinningHorizontalMode_Average) 
+            cam.BinningVerticalMode.SetValue(PySpin.BinningVerticalMode_Average)
+        else:
+            cam.BinningHorizontal.SetValue(1)
+            cam.BinningVertical.SetValue(1)
+            cam.Width.SetValue(h_res)
+            cam.Height.SetValue(v_res)
+            #cam.OffsetX.SetValue(6)
+           # cam.OffsetX.SetValue((MAX_HRES-h_res)/2)  # TODO doesn't work. Why?
+           # cam.OffsetY.SetValue((MAX_VRES-v_res)/2)
+            #print("get value", cam.OffsetX.GetValue())
+            cam.BinningHorizontalMode.SetValue(PySpin.BinningHorizontalMode_Average) 
+            cam.BinningVerticalMode.SetValue(PySpin.BinningVerticalMode_Average)
+        print("resolution set to:", h_res, "x", v_res)
+            
+
+
+
+            
+    def run(self):
+        try:
+            self.setup_logger()
+            self.printl(f'pid: {os.getpid()}')
+            self.running=False
+            
+            # Retrieve singleton reference to system object
+            system = PySpin.System.GetInstance()
+
+            # Get current library version
+            version = system.GetLibraryVersion()
+            print('Camera Library version: %d.%d.%d.%d' % (version.major, version.minor, version.type, version.build))
+
+            # Retrieve list of cameras from the system
+            cam_list = system.GetCameras()
+            num_cameras = cam_list.GetSize()
+            print('Number of cameras detected(before reset): %d' % num_cameras)
+
+            # Finish if there are no cameras
+            if num_cameras == 0:
+                # Clear camera list before releasing system
+                cam_list.Clear()
+                # Release system instance
+                system.ReleaseInstance()
+                raise ValueError(f'BlackFly S Camera not detected!!')
+
+            cam = cam_list[0]
+            cam.Init()
+            print('Execute camera reset')
+            cam.DeviceReset()
+            cam.DeInit()
+            del cam
+            cam_list.Clear()
+            time.sleep(1)
+
+            cam_list = system.GetCameras()
+            while cam_list.GetSize() == 0:
+                time.sleep(1)
+                print('Wait camera reset')
+                cam_list = system.GetCameras()
+
+            #cam_list = system.GetCameras()
+            num_cameras = cam_list.GetSize()
+            print('Number of cameras detected(after reset): %d' % num_cameras)
+
+            # Finish if there are no cameras
+            if num_cameras == 0:
+                # Clear camera list before releasing system
+                cam_list.Clear()
+                # Release system instance
+                system.ReleaseInstance()
+                raise ValueError(f'BlackFly S Camera not detected!!')
+
+            cam = cam_list[0]
+            
+            cam.Init()
+            nodemap_tldevice = cam.GetTLDeviceNodeMap()
+            
+            self.change_bufferhandling_mode(cam)
+            self.set_acquisition_mode(cam)
+            self.disable_manual_trigger(cam)
+            if(self.auto_exposure_time):
+                self.set_exposure_Auto_mode(cam, "Continuous") #valid modes: Off, Continuous, Once
+            else:
+                self.set_exposure_Auto_mode(cam, "Off") #valid modes: Off, Continuous, Once
+                self.set_exposure_time_us(cam, self.exposure_time_us)
+
+            self.set_framerate(cam, self.frame_rate)
+
+            self.set_resolution(cam, self.h_res, self.v_res)
+
+            if(self.FrameStart_out_enabled):
+                self.set_frame_start_gpio_state(cam, True)
+            else:
+                self.set_frame_start_gpio_state(cam, False)
+            
+            fps = str(self.frame_rate)
+            print("video framerate:", fps)
+            self.printl('Camera started')
+            import skvideo.io
+            if self.filename!=None:
+                self.video_writer=skvideo.io.FFmpegWriter(self.filename, inputdict={'-r':fps}, outputdict={'-r':fps})
+            self.timestamps=[]
+
+            # Get the value of exposure time to set an appropriate timeout for GetNextImage
+            timeout = 0
+            if cam.ExposureTime.GetAccessMode() == PySpin.RW or cam.ExposureTime.GetAccessMode() == PySpin.RO:
+                # The exposure time is retrieved in µs so it needs to be converted to ms to keep consistency with the unit being used in GetNextImage
+                timeout = (int)(cam.ExposureTime.GetValue() / 1000 + 100)
+            else:
+                print ('Unable to get exposure time. Aborting...')
+                raise ValueError(f'Unable to get exposure time. Aborting...')
+            
+            print("frame tiemout set to:", timeout)
+
+            
+            
+            if self.show:
+                #Camera.StartLive(1)
+                cam.BeginAcquisition()
+            else:
+                #Camera.StartLive(0)
+                cam.BeginAcquisition()
+                
+            while True:
+                if not self.queues['command'].empty():
+                    cmd=self.queues['command'].get()
+                    self.printl(cmd)
+                    if cmd=='stop':
+                        self.set_frame_start_gpio_state(cam, False)
+                        cam.EndAcquisition()
+                        cam.DeInit()
+                        self.printl('Stop camera')
+                        break
+                    elif cmd[0]=='save':
+                        self.video_writer=skvideo.io.FFmpegWriter(cmd[1], inputdict={'-r':fps}, outputdict={'-r':fps})
+                        self.filename_mp4=cmd[1]
+                        self.timestamps=[]
+                        self.set_frame_start_gpio_state(cam, True)
+                    elif cmd=='stop_saving':
+                        self.printl('Close video file')
+                        self.set_frame_start_gpio_state(cam, False)
+                        self.video_writer.close()
+                        del self.video_writer
+                        if hasattr(self, 'timestamps'):
+                            numpy.savetxt(fileop.replace_extension(self.filename_mp4,'.txt'),numpy.array(self.timestamps),fmt='%10.4f')
+                        self.queues['response'].put('save done')
+                    elif cmd=='ttl_enable':
+                        self.set_frame_start_gpio_state(cam, True)
+                        self.queues['response'].put('done')
+                    elif cmd=='ttl_disable':
+                        self.set_frame_start_gpio_state(cam, False)
+                        self.queues['response'].put('done')
+            
+                image_result = cam.GetNextImage(timeout)
+
+                #  Ensure image completion
+                if image_result.IsIncomplete():
+                    print('Image incomplete with image status %d ...' % image_result.GetImageStatus())
+                    continue
+                else:                    
+                    # Getting the image data as a numpy array
+                    frame = image_result.GetNDArray()
+
+
+                if hasattr(self, 'video_writer'):
+                    if len(frame.shape)==2:
+                        #frame=numpy.rollaxis(numpy.array([frame]*3),0,3).copy()
+                        pass
+                    self.video_writer.writeFrame(frame)
+                    self.timestamps.append(time.time())
+                    
+
+                if self.queues['data'].empty() and frame is not None:#Send frame when queue empty (previous frame was taken
+                    self.queues['data'].put(frame)
+                    #print("image put ok")
+
+                image_result.Release()  
+
+            if hasattr(self, 'video_writer'):
+                self.printl(f'Close video file {self.filename}')
+                self.video_writer.close()
+                
+            cam.DeInit()
+            del cam
+            cam_list.Clear()
+            system.ReleaseInstance()
+            if hasattr(self, 'timestamps'):
+                numpy.savetxt(fileop.replace_extension(self.filename,'.txt'),numpy.array(self.timestamps),fmt='%10.4f')
+            
+            self.printl('Leaving process')
+        except:
+            import traceback
+            self.printl(traceback.format_exc())
+        
+
         
 class WebCamera(instrument.InstrumentProcess):
     def __init__(self,camera_id,logfile,digital_line,filename=None):
@@ -471,7 +823,8 @@ class TestCamera(unittest.TestCase):
         
 #        import pdb
 #       
-    
+
+    @unittest.skip('')       
     def test_7_strobe(self):
         fn=r'c:\Data\cam_test\a.mp4'
         from visexpman.engine.generic import fileop
@@ -500,6 +853,41 @@ class TestCamera(unittest.TestCase):
         print(f'Pulse rate: {10e3/numpy.diff(signal.trigger_indexes(data[0])[::2]).mean()} Hz')
         from pylab import plot,show
         plot(data[0]);show()
+
+    @unittest.skip('')   
+    def test_7_BlackFlyS(self):
+        cam=BlackFlySCamera(r'c:\data\cam_test\camlog.txt',None, frame_rate=30,auto_exposure_time = True, exposure_time_us=0, filename=None, show=False)
+        cam.start()
+        for i in range(5):
+            time.sleep(0.3)
+            fr=cam.read()
+            if fr is not None:
+                frame=fr
+                from pylab import imshow, show
+                #import pdb;pdb.set_trace()
+                imshow(frame)
+                show()
+                #break
+        #for i in range(3):
+         #   time.sleep(1.1)
+        cam.stop()
+        time.sleep(1)
+        cam.terminate()
+
+    def test_8_BlackFlyS_video(self):
+        fn=r'c:\data\cam_test\test.mp4'
+        from visexpman.engine.generic import fileop
+        fileop.remove_if_exists(fn)
+        cam=BlackFlySCamera(r'c:\data\cam_test\camlog.txt',None, frame_rate=30, auto_exposure_time = False, exposure_time_us=20000, filename=fn, show=False, FrameStart_out_enabled = True, h_res=1000, v_res=1000)
+        cam.start()
+        for i in range(5):
+            time.sleep(1)
+        print('Stop saving')
+        cam.stop_saving()
+        time.sleep(3)
+        cam.stop()
+        time.sleep(1)
+        cam.terminate()
             
 
 if __name__ == '__main__':

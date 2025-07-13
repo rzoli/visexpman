@@ -73,6 +73,9 @@ class Camera(gui.VisexpmanMainWindow):
         self.camera2_io_port= self.machine_config.CAMERA2_IO_PORT if hasattr(self.machine_config, 'CAMERA2_IO_PORT') else None
         if self.camera_api=='tisgrabber':
             self.camera1handler=camera.ISCamera(self.machine_config.CAMERA1_ID, self.logger.filename.replace('.txt', '_cam1.txt'), self.camera1_io_port, frame_rate=self.parameters['params/Frame Rate'], exposure=self.parameters['params/Exposure time']*1e-3)
+        elif self.camera_api=='blackfly':
+            self.camera1handler=camera.BlackFlySCamera(self.logger.filename.replace('.txt', '_cam1.txt'),None, frame_rate=self.parameters['params/Frame Rate'], auto_exposure_time = False, exposure_time_us=self.parameters['params/Exposure time']*1000, filename=None, show=False, FrameStart_out_enabled = True)
+            self.camera1handler.ttl_disable()
         else:
             self.camera1handler=camera_interface.ImagingSourceCameraHandler(self.parameters['params/Frame Rate'], self.parameters['params/Exposure time']*1e-3, self.camera1_io_port)
         self.camera1handler.start()
@@ -129,6 +132,7 @@ class Camera(gui.VisexpmanMainWindow):
             params=[]
         self.params_config = [
                 {'name': 'Experiment Name', 'type': 'str', 'value': ''},
+		{'name': 'Enable live view', 'type': 'bool', 'value': True},
                 {'name': 'Trigger', 'type': 'list', 'values': ['file','manual', 'network', 'TTL pulses'], 'value': trigger_value},
                 {'name': 'Enable trigger', 'type': 'bool', 'value': False,   'readonly': not self.machine_config.ENABLE_TRIGGERING}, 
                 {'name': 'Frame Rate', 'type': 'float', 'value': 50, 'siPrefix': True, 'suffix': 'Hz'},
@@ -160,6 +164,8 @@ class Camera(gui.VisexpmanMainWindow):
             self.camera1handler.stop()
             if self.camera_api=='tisgrabber':
                 self.camera1handler=camera.ISCamera(self.machine_config.CAMERA1_ID, self.logger.filename.replace('.txt', '_cam1.txt'), self.camera1_io_port, self.parameters['params/Frame Rate'], self.parameters['params/Exposure time']*1e-3)
+            elif self.camera_api=='blackfly':
+                self.camera1handler=camera.BlackFlySCamera(self.logger.filename.replace('.txt', '_cam1.txt'),None, frame_rate=self.parameters['params/Frame Rate'], auto_exposure_time = False, exposure_time_us=self.parameters['params/Exposure time']*1000, filename=None, show=False, FrameStart_out_enabled = True)
             else:
                 self.camera1handler=camera_interface.ImagingSourceCameraHandler(self.parameters['params/Frame Rate'], self.parameters['params/Exposure time']*1e-3,  None)
             self.camera1handler.start()
@@ -191,6 +197,7 @@ class Camera(gui.VisexpmanMainWindow):
 #            self.camera1handler.stop()
 #            if self.machine_config.CAMERA2_ENABLE:
 #                self.camera2handler.stop()
+            time.sleep(self.machine_config.CAMERA_START_DELAY)
             if self.machine_config.ENABLE_SYNC=='camera':
                 self.aifix=True
                 if self.aifix:
@@ -275,6 +282,9 @@ class Camera(gui.VisexpmanMainWindow):
                 if self.machine_config.CAMERA2_ENABLE:
                     self.camera2handler.save(self.cam2fn)
                 #self.camera1handler=camera.ISCamera(self.machine_config.CAMERA1_ID, self.logger.filename.replace('.txt', '_cam1.txt'), self.camera1_io_port, self.parameters['params/Frame Rate'], self.parameters['params/Exposure time']*1e-3, filename=self.cam1fn)
+            elif self.camera_api=='blackfly':
+                #self.camera1handler.ttl_enable()
+                self.camera1handler.save(self.cam1fn)
             else:
                 #OBSOLETE
                 self.camera1handler=camera_interface.ImagingSourceCameraHandler(self.parameters['params/Frame Rate'], self.parameters['params/Exposure time']*1e-3,  self.machine_config.CAMERA_IO_PORT,  filename=self.cam1fn, watermark=True)
@@ -718,7 +728,7 @@ class Camera(gui.VisexpmanMainWindow):
                 imgqueue=self.camera1handler.display_frame
             elif hasattr(self.camera1handler, 'queues'):
                 imgqueue=self.camera1handler.queues['data']
-            if not imgqueue.empty():
+            if not imgqueue.empty() and self.parameters['params/Enable live view']:
                 frame=imgqueue.get()
                 self.frame=frame
                 if self.parameters['params/Enable ROI cut']:
