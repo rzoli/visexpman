@@ -41,6 +41,10 @@ def stop_widefield(config):
         daq.digital_pulse(port,100e-3)
         time.sleep(0.3)
 
+def restart_widefield(config,intertrial_wait):
+    daq.restart_pulse(config.WIDEFIELD_START_PINS,config.WIDEFIELD_STOP_PINS[0],100e-3,intertrial_wait)
+
+
 class ThorlabsCamera(object):
     def __init__(self, dll_path, nbit=8):
         os.environ['PATH'] = dll_path + os.pathsep + os.environ['PATH']
