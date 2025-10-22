@@ -2040,6 +2040,9 @@ class Analysis(object):
             self.printc('Aggregated cells are saved to {0}mat and {0}hdf5'.format(aggregate_filename))
             self.to_gui.put({'display_cell_tree':self.cells})
             self.display_trace_parameter_distribution()
+            self.printc('Aggregate red channel meanimages')
+            cone_data.add_red_meanimage2cells(folder)
+            self.printc('Done')
         
     def display_trace_parameter_distribution(self):
         if not hasattr(self, 'parameter_distributions'):

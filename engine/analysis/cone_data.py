@@ -380,6 +380,34 @@ def roi_redetect(rectangle, meanimage, subimage_size=3):
     area[1]+=numpy.cast['int'](rectangle[1]-rectangle[3]*subimage_size*0.5)
     return numpy.array(area).T
     
+def add_red_meanimage2cells(folder):
+    allfiles=fileop.find_files(folder, 'hdf5')
+    datafiles=[fn for fn in allfiles if os.path.basename(fn).startswith('data_')]
+    cellfiles=[fn for fn in allfiles if os.path.basename(fn).startswith('aggregated_') and '_red.' not in fn]
+    assert len(cellfiles)==1
+    import hdf5io, shutil
+    meanimages={}
+    for datafile in datafiles:
+        hh=hdf5io.Hdf5io(datafile)
+        hh.load('raw_data')
+        red_meanimage=hh.raw_data[:,1].mean(axis=0)
+        meanimages[os.path.splitext(os.path.basename(datafile))[0]]=red_meanimage
+        hh.close()
+    dst=fileop.replace_extension(cellfiles[0], '_red.hdf5')
+    fileop.remove_if_exists(dst)
+    shutil.copy(cellfiles[0], dst)
+    hh=hdf5io.Hdf5io(dst)
+    hh.load('cells')
+    for i in range(len(hh.cells)):
+        for k in hh.cells[i].keys():
+            if k=='scan_region':continue
+            for datafn in hh.cells[i][k].keys():
+                hh.cells[i][k][datafn]['red_meanimage']=meanimages[datafn]
+    hh.save('cells')
+    hh.close()
+    experiment_data.hdf52mat(dst)
+
+    
 class TestCA(unittest.TestCase):
     def setUp(self):
         if '_01_' in self._testMethodName or '_02_' in self._testMethodName or '_03_' in self._testMethodName:
