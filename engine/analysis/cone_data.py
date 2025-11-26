@@ -548,6 +548,11 @@ class TestCA(unittest.TestCase):
     @unittest.skip('')
     def test_debug(self):
         aggregate_cells('/tmp/test')
+        
+    def test_red_meanimage(self):
+        folder='/data/rei/20250630 Exp2 integrated ganglion cells'
+        folder='/data/rei/20250701 Exp2 integrated ganglion cells'
+        add_red_meanimage2cells(folder)
     
 if __name__=='__main__':
     unittest.main()

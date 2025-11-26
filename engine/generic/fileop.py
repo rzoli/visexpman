@@ -313,6 +313,9 @@ def listdir(folder):
     files.sort()
     return list(map(os.path.join, len(files)*[folder],files))
     
+def listsubfolder(folder):
+    return [fn for fn in listdir(folder) if os.path.isdir(fn)]
+    
 def find_latest(path, extension=None, subfolders=True):
     '''
     Find the latest file in the folder
