@@ -7,7 +7,6 @@ import time,unittest
 import copy,logging,tempfile
 import queue as Queue
 import PyQt5.Qt as Qt
-#import PyQt5.QtGui as QtGui
 import PyQt5.QtWidgets as QtWidgets
 import PyQt5.QtGui as QtGui
 import PyQt5.QtCore as QtCore
@@ -76,12 +75,12 @@ class VisexpmanMainWindow(Qt.QMainWindow):
             self.helper.clicked.connect(self.help_click)
             menubar.setCornerWidget(self.helper)
             self.tooltiplist = []
-            for item in self.findChildren(QtGui.QWidget):#TODO: implement aggregating tooltip strings automatically
+            for item in self.findChildren(QtWidgets.QWidget):#TODO: implement aggregating tooltip strings automatically
                 self.tooltiplist.append(item.toolTip())
                 item.setToolTip("")
         
     def help_click(self):
-        widgets = self.findChildren(QtGui.QWidget)
+        widgets = self.findChildren(QtWidgets.QWidget)
         if(self.tooltip_state):
             self.helper.setIcon(QtGui.QIcon(os.path.join(self.iconfolder,"help_on.png")))
             for item in widgets:
@@ -340,7 +339,7 @@ class Progressbar(QtWidgets.QWidget):
         self.setMinimumWidth(320)
         self.setMinimumHeight(50)
         self.move(10,10)
-        self.l = QtGui.QGridLayout()
+        self.l = QtWidgets.QGridLayout()
         self.l.addWidget(self.progressbar, 0, 0, 1, 1)
         self.setLayout(self.l)
         self.t0=time.time()
@@ -470,7 +469,7 @@ class AddNote(QtWidgets.QWidget):
         self.text.setFixedHeight(80)
         self.move(100,100)
         self.save=QtGui.QPushButton('Save' ,parent=self)
-        self.l = QtGui.QGridLayout()
+        self.l = QtWidgets.QGridLayout()
         self.l.addWidget(self.text, 0, 0, 1, 1)
         self.l.addWidget(self.save, 0, 1, 1, 1)
         self.setLayout(self.l)
@@ -598,7 +597,7 @@ class TimeAxisItemYYMMDD(pyqtgraph.AxisItem):
             
 class TabbedPlots(QtWidgets.QWidget):
     def __init__(self, parent,names,plot_kwargs={}):
-        QtGui.QWidget.__init__(self, parent)
+        QtWidgets.QWidget.__init__(self, parent)
         self.names=names
         self.tab = QtGui.QTabWidget(self)
         self.tab.setTabPosition(self.tab.South)
@@ -609,7 +608,7 @@ class TabbedPlots(QtWidgets.QWidget):
             
 class TabbedImages(QtWidgets.QWidget):
     def __init__(self, parent,names):
-        QtGui.QWidget.__init__(self, parent)
+        QtWidgets.QWidget.__init__(self, parent)
         self.names=names
         self.tab = QtGui.QTabWidget(self)
         self.tab.setTabPosition(self.tab.South)
@@ -899,7 +898,7 @@ class ArrowButtons(QtWidgets.QGroupBox):
             self.buttons[n].setFlat(True)
             self.buttons[n].setFixedWidth(23)
             self.buttons[n].setFixedHeight(23)
-        self.layout = QtGui.QGridLayout()
+        self.layout = QtWidgets.QGridLayout()
         self.layout.addWidget(self.buttons['up'], 0, 1)
         self.layout.addWidget(self.buttons['down'], 2, 1)
         self.layout.addWidget(self.buttons['left'], 1, 0)
@@ -932,13 +931,13 @@ class ImageAdjust(QtWidgets.QWidget):
         self.input.setText(TEXT)
     '''
     def __init__(self, parent):
-        QtGui.QWidget.__init__(self, parent)
+        QtWidgets.QWidget.__init__(self, parent)
         self.high = QtGui.QSlider(Qt.Qt.Horizontal,self)
         self.low = QtGui.QSlider(Qt.Qt.Horizontal,self)
-        hl=QtGui.QLabel('High', self)
-        ll=QtGui.QLabel('Low', self)
+        hl=QtWidgets.QLabel('High', self)
+        ll=QtWidgets.QLabel('Low', self)
         self.fit_image=QtGui.QPushButton('Fit Image' ,parent=self)
-        self.layout = QtGui.QGridLayout()
+        self.layout = QtWidgets.QGridLayout()
         self.layout.addWidget(ll, 0, 0)
         self.layout.addWidget(self.low, 0, 1)
         self.layout.addWidget(hl, 0, 2)
@@ -954,17 +953,17 @@ class LabeledInput(QtWidgets.QWidget):
         self.input.setText(TEXT)
     '''
     def __init__(self, parent, label):
-        QtGui.QWidget.__init__(self, parent)
+        QtWidgets.QWidget.__init__(self, parent)
         self.label = label
         self.create_widgets()
         self.create_layout()
 
     def create_widgets(self):
-        self.labelw = QtGui.QLabel(self.label, self)
-        self.input = QtGui.QLineEdit(self)
+        self.labelw = QtWidgets.QLabel(self.label, self)
+        self.input = QtWidgets.QLineEdit(self)
 
     def create_layout(self):
-        self.layout = QtGui.QGridLayout()
+        self.layout = QtWidgets.QGridLayout()
         self.layout.addWidget(self.labelw, 0, 0)
         self.layout.addWidget(self.input, 0, 1)
         self.setLayout(self.layout)
@@ -975,7 +974,7 @@ class LabeledComboBox(QtWidgets.QWidget):
         self.input.setText(TEXT)
     '''
     def __init__(self, parent, label,items=None,editable=False):
-        QtGui.QWidget.__init__(self, parent)
+        QtWidgets.QWidget.__init__(self, parent)
         self.label = label
         self.create_widgets()
         if editable:
@@ -985,11 +984,11 @@ class LabeledComboBox(QtWidgets.QWidget):
             self.update_items(items)
 
     def create_widgets(self):
-        self.labelw = QtGui.QLabel(self.label, self)
-        self.input = QtGui.QComboBox(self)
+        self.labelw = QtWidgets.QLabel(self.label, self)
+        self.input = QtWidgets.QComboBox(self)
 
     def create_layout(self):
-        self.layout = QtGui.QGridLayout()
+        self.layout = QtWidgets.QGridLayout()
         self.layout.addWidget(self.labelw, 0, 0)
         self.layout.addWidget(self.input, 0, 1)
         self.setLayout(self.layout)
@@ -1006,7 +1005,7 @@ class LabeledListWidget(QtWidgets.QWidget):
         self.input.setText(TEXT)
     '''
     def __init__(self, parent, label,items=None):
-        QtGui.QWidget.__init__(self, parent)
+        QtWidgets.QWidget.__init__(self, parent)
         self.label = label
         self.create_widgets()
         self.create_layout()
@@ -1017,12 +1016,12 @@ class LabeledListWidget(QtWidgets.QWidget):
         return [str(i.text()) for i in map(self.list.item, [s.row() for s in self.list.selectedIndexes()])]
 
     def create_widgets(self):
-        self.labelw = QtGui.QLabel(self.label, self)
+        self.labelw = QtWidgets.QLabel(self.label, self)
         self.list = QtGui.QListWidget(self)
         self.list.setSelectionMode(self.list.MultiSelection)
 
     def create_layout(self):
-        self.layout = QtGui.QGridLayout()
+        self.layout = QtWidgets.QGridLayout()
         self.layout.addWidget(self.labelw, 0, 0)
         self.layout.addWidget(self.list, 1, 0)
         self.setLayout(self.layout)
@@ -1050,18 +1049,18 @@ class LabeledCheckBox(QtWidgets.QWidget):
         
 class LabeledSlider(QtWidgets.QWidget):
     def __init__(self, parent, label):
-        QtGui.QWidget.__init__(self, parent)
+        QtWidgets.QWidget.__init__(self, parent)
         self.label = label
         self.create_widgets()
         self.create_layout()
         
     def create_widgets(self):
-        self.labelw = QtGui.QLabel(self.label, self)
+        self.labelw = QtWidgets.QLabel(self.label, self)
         self.input = QtGui.QSlider(self)
-        self.valuelabel= QtGui.QLabel('', self)
+        self.valuelabel= QtWidgets.QLabel('', self)
         
     def create_layout(self):
-        self.layout = QtGui.QGridLayout()
+        self.layout = QtWidgets.QGridLayout()
         self.layout.addWidget(self.labelw, 0, 0)
         self.layout.addWidget(self.input, 0, 1)
         self.layout.addWidget(self.valuelabel, 0, 2)
@@ -1073,7 +1072,7 @@ class PushButtonWithParameter(QtWidgets.QWidget):
         self.input.setText(TEXT)
     '''
     def __init__(self, parent, buttonname, parametername):
-        QtGui.QWidget.__init__(self, parent)
+        QtWidgets.QWidget.__init__(self, parent)
         self.parametername = parametername
         self.buttonname = buttonname
         self.create_widgets()
@@ -1084,7 +1083,7 @@ class PushButtonWithParameter(QtWidgets.QWidget):
         self.button = QtGui.QPushButton(self.buttonname, self)
 
     def create_layout(self):
-        self.layout = QtGui.QGridLayout()
+        self.layout = QtWidgets.QGridLayout()
         self.layout.addWidget(self.input, 0, 1, 1, 2)
         self.layout.addWidget(self.button, 0, 0)
         self.setLayout(self.layout)
@@ -1118,12 +1117,12 @@ def get_combobox_items(combobox):
     return [str(combobox.itemText(i)) for i in range(combobox.count())]
     
 def text_input_popup(self, title, name, callback):
-    self.w=QtGui.QWidget(None)
+    self.w=QtWidgets.QWidget(None)
     self.w.setWindowTitle(title)
     self.w.setGeometry(50,50,400,100)
     self.w.input=LabeledInput(self.w,name)
     self.w.okbtn=QtGui.QPushButton('OK', parent=self.w)
-    self.w.l = QtGui.QGridLayout()
+    self.w.l = QtWidgets.QGridLayout()
     self.w.l.addWidget(self.w.input, 0, 0, 1, 1)
     self.w.l.addWidget(self.w.okbtn, 1, 0, 1, 1)
     self.w.setLayout(self.w.l)
