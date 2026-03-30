@@ -731,7 +731,7 @@ def array2object(numpy_array):
             return pickle.loads(compressor.decompress(numpy_array.tostring()))
     
 def object2array(obj):
-    return numpy.fromstring(object2str(obj), numpy.uint8)
+    return numpy.frombuffer(object2str(obj), numpy.uint8)
         
 def object2hdf5(h, vn):
     if hasattr(h, vn):

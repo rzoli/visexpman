@@ -764,7 +764,7 @@ class Camera(gui.VisexpmanMainWindow):
                     
                 try:
                     self.frame1=numpy.rot90(numpy.flipud(f))
-                    self.image.set_image(self.frame1)
+                    self.image.set_image(self.frame1,color_channel='all')
                 except:
                     print(traceback.format_exc())
                 if self.recording and hasattr(self,  'tstart'):
@@ -780,7 +780,7 @@ class Camera(gui.VisexpmanMainWindow):
                 frame=self.camera2handler.read()
                 if frame is not None:
                     self.frame2=numpy.rot90(numpy.flipud(frame))
-                    self.camera2image.set_image(self.frame2)
+                    self.camera2image.set_image(self.frame2,color_channel='all')
         except:
             self.printc(traceback.format_exc())
         
